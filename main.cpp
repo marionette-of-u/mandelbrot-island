@@ -588,6 +588,7 @@ public:
         color_plt(nullptr),
         plt_img(new short[const_value::mandelbrot_width * const_value::mandelbrot_width]),
         non_diverge_point_to_black(false),
+        prev_non_diverge_point_to_black(false),
         smooth_draw_flag(false)
     {
         data.xmin = const_value::xmin, data.xmax = const_value::xmax;
@@ -671,7 +672,7 @@ public:
     }
 
     bool make_color_plt(bool reset_flag = true){
-        if(static_cast<const plain_thread_draw_data&>(data) == data_cache){
+        if(non_diverge_point_to_black == prev_non_diverge_point_to_black && static_cast<const plain_thread_draw_data&>(data) == data_cache){
             return false;
         }
         if(data.maxiter != data_cache.maxiter){
@@ -688,6 +689,7 @@ public:
         if(non_diverge_point_to_black){
             for(int i = 0; i < 3; ++i){ color_plt[data.maxiter - 1][i] = 0; }
         }
+        prev_non_diverge_point_to_black = non_diverge_point_to_black;
         return true;
     }
 
@@ -725,9 +727,7 @@ public:
             data.ymin == data.ymax ||
             data.xmax - data.xmin == 0 ||
             data.ymax - data.ymin == 0
-        ){
-            return false;
-        }
+        ){ return false; }
         join_all_thread();
         cache_array.push_back(data);
         make_color_plt();
@@ -973,6 +973,7 @@ public:
     }
 
     void switch_mset_to_black(){
+        prev_non_diverge_point_to_black = non_diverge_point_to_black;
         non_diverge_point_to_black = !non_diverge_point_to_black;
     }
 
@@ -1001,7 +1002,7 @@ private:
     std::unique_ptr<short[]> plt_img;
     std::mutex mutex_make_rec_thread;
     std::vector<thread_draw_data> cache_array;
-    bool non_diverge_point_to_black;
+    bool non_diverge_point_to_black, prev_non_diverge_point_to_black;
     bool smooth_draw_flag;
 
 private:
@@ -1032,16 +1033,20 @@ private:
     typedef void (ui_type::*dad_proc_type)();
     typedef void (ui_type::*dad_draw_type)() const;
 
+    void redraw(){
+        if(DeleteGraph(draw_buffer_handle) == -1){
+            std::abort();
+        }
+        draw_buffer_handle = CreateGraphFromSoftImage(buffer_handle);
+    }
+
     void remake_draw(){
         int buffer_handle_ = buffer_handle;
         auto f = [buffer_handle_](int x, int y, rgb_type c){
             DrawPixelSoftImage_Unsafe_XRGB8(buffer_handle_, x, y, c[0], c[1], c[2]);
         };
         if(mandelbrot.remake(f)){
-            if(DeleteGraph(draw_buffer_handle) == -1){
-                std::abort();
-            }
-            draw_buffer_handle = CreateGraphFromSoftImage(buffer_handle);
+            redraw();
         }
     }
 
@@ -1487,6 +1492,7 @@ public:
                     }
                 }else if(input_manager.push(KEY_INPUT_W)){
                     mandelbrot.switch_mset_to_black();
+                    remake_draw();
                 }else if(input_manager.push(KEY_INPUT_S)){
                     mandelbrot.switch_smooth_draw();
                 }else if(input_manager.push(KEY_INPUT_0)){
