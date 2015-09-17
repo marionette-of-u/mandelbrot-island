@@ -6,34 +6,26 @@ dot
     b1u_t g; //green
     b1u_t r; //red
     b1u_t a; //alpha
-
 logic_error
     実行以前のエラーに起因する例外
-
 domain_error
     実行時エラーに起因する例外
-
 mem_error
     domain_error
     メモリアロケーションに関するエラー
-
 BitCountError
     logic_error
     色数に関するエラー
-
 ----算術型
 b4_t
 b4u_t
     4バイトの型
-
 b2_t
 b2u_t
     2バイトの型
-
 b1_t
 b1u_t
     1バイトの型
-
 ----enum
 ColorNum::b1
 ColorNum::b4
@@ -41,16 +33,13 @@ ColorNum::b8
 ColorNum::b24
 ColorNum::b32
     1bit 4bit 8bit 24bit 32bitを表すenum
-
 ColorNum::n2
 ColorNum::n16
 ColorNum::n256
     2色(1bit) 16色(2bit) 256色(8bit)を表すenum
-
 ----method
 ctor()
     使用禁止
-
 ctor(
     const b4_t BitCount_,
     const b4_t Width_,
@@ -72,10 +61,8 @@ ctor(std::basic_ifstream<T, U> &f)
     [Compression_] 圧縮は無効
     [path]         開くファイルのパス
     [f]            開くファイルのfstream
-
 virtual dtor()
     パレット配列と画素配列を開放する
-
 static dot rgb(int r, int g, int b)
 static dot rgb(int r, int g, int b, int a)
     色を作ってdotを返す
@@ -84,7 +71,6 @@ static dot rgb(int r, int g, int b, int a)
     [g] 緑成分
     [b] 青成分
     [a] alpha成分
-
 int width() const
 int width(int v)
 int width(int v, int i)
@@ -114,7 +100,6 @@ int height(int v, dot d)
     [v] 新しく設定する値
     [i] 空白領域を埋めるのに使うパレットインデックス
     [d] 空白領域を埋めるのに使う色情報
-
 array_t<int, 2> resize(int w_, int h_)
 array_t<int, 2> resize(int w_, int h_, int i)
 array_t<int, 2> resize(int w_, int h_, dot d)
@@ -132,7 +117,6 @@ array_t<int, 2> resize(int w_, int h_, dot d)
     [h_] 新しい高さ
     [i]  塗りつぶすパレットナンバー
     [d]  塗りつぶす色
-
 int xppm()const
 int xppm(int v)
 int yppm()const
@@ -140,11 +124,9 @@ int yppm(int v)
     幅/高さを得る/設定する
     設定関数は設定する前の値を返す
     [v] 新しい値
-
 int pltnum() const
     パレットの数を得る
     パレットを持っていないと例外 pltnum_BitCountError (BitCountError) を送出する
-
 dot setplt(int i, dot d)
     パレットのi番目の色をdに設定する
     パレットを持っていないと
@@ -153,7 +135,6 @@ dot setplt(int i, dot d)
         * 例外 setplt_OOR (logic_error) を送出する
     [i] 変更したい色のパレット上の位置
     [d] 色
-
 int pltidx(int x, int y) const
 int pltidx(int x, int y, int pltnum)
     指定した座標のパレットインデックスを得る/設定する
@@ -165,7 +146,6 @@ int pltidx(int x, int y, int pltnum)
     [x]      x座標
     [y]      y座標
     [pltnum] パレットのナンバー
-
 dot clr(int x, int y) const
 dot clr(int x, int y, dot d)
     指定座標の色を取得/設定する
@@ -173,11 +153,9 @@ dot clr(int x, int y, dot d)
     設定関数でパレットを所持していた場合
         * 例外 clr_set_BitCountError (BitCountError)
     を送出する
-
 void line(int xa, int ya, int xb, int yb, dot d)
 void line(int xa, int ya, int xb, int yb, int idx)
     線を引く
-
 template<typename T, typenaem U>
     void write(basic_ofstream<T, U> &f) const
 void write(const char* const path) const
@@ -187,8 +165,8 @@ void write(const char* const path) const
     [f]    出力対象
 */
 
-#ifndef __TTY_BMP__
-#define __TTY_BMP__
+#ifndef __TTXY_LEGACY_BMP__
+#define __TTXY_LEGACY_BMP__
 
 #include <cmath>
 #include <cstring>
@@ -197,10 +175,96 @@ void write(const char* const path) const
 #include <utility>
 #include <exception>
 #include <locale>
+#include <cstdint>
 
-#include "st.hpp"
+#ifndef __TTXY_LEGACY_ST__
+#define __TTXY_LEGACY_ST__
 
-namespace tty{
+namespace tt_legacy{
+    template<typename T> T *ta_index(const T *str, const T &c, const T &tmnl = T()){
+        for(; *str != tmnl && *str != c; ++str);
+        return const_cast<T*>(*str == tmnl ? reinterpret_cast<T*>(0) : str);
+    }
+
+    template<typename T> T *ta_rindex(const T *str, const T &c, const T &tmnl = T()){
+        T *r = reinterpret_cast<T*>(0);
+        for(; *str != tmnl; ++str)
+            if(str == c) r = const_cast<T*>(str);
+        return r;
+    }
+}
+
+namespace tt_legacy{
+    template<typename T> int atcmp(const T *str, const T *tus, const T &trm = T()){
+        for(; ; ++str, ++tus){
+            if(*str == *tus){
+                if(*str == trm)
+                    return 0;
+                else
+                    continue;
+            }else{
+                return *str > *tus ? 1 : -1;
+            }
+        }
+    }
+}
+
+#include <cstring>
+namespace tt_legacy{
+    template<typename T, typename V> inline T *memcpy(T *dst, T *src, V s){
+        return reinterpret_cast<T*>(std::memcpy(
+            reinterpret_cast<void*>(dst),
+            reinterpret_cast<const void*>(src),
+            sizeof(T) * static_cast<size_t>(s)
+        ));
+    }
+
+    template<typename T, typename V> inline T *memcpy(T *dst, const T *src, V s){
+        return reinterpret_cast<T*>(std::memcpy(
+            reinterpret_cast<void*>(dst),
+            reinterpret_cast<const void*>(src),
+            sizeof(T) * static_cast<size_t>(s)
+        ));
+    }
+}
+
+namespace tt_legacy{
+    template<unsigned int a, unsigned int b> struct pow{
+        enum{ value = a * pow<a, b - 1>::value };
+    };
+
+    template<unsigned int a> struct pow<a, 1>{
+        enum{ value = a };
+    };
+
+    template<unsigned int a> struct pow<a, 0>{
+        enum{ value = 1 };
+    };
+}
+
+namespace tt_legacy{
+    template<typename T> inline int ta_length(const T *sequence, const T &tv = 0){
+        int i = 0;
+        for(; sequence[i] != tv; ++i);
+        return i;
+    }
+}
+
+namespace tt_legacy{
+    template<typename T, typename U> inline T &force_cast(U &a){
+        return *reinterpret_cast<T*>(&a);
+    }
+}
+
+namespace tt_legacy{
+    template<typename T, int N> struct array_t{
+        T data[N];
+    };
+}
+
+#endif // __TTXY_LEGACY_ST__
+
+namespace tt_legacy{
 
 #ifdef _MSC_VER
 #pragma warning(disable:4290)
@@ -215,19 +279,19 @@ namespace tty{
     class xbmp{
         //--------公開型
     public:
-        typedef int
+        typedef std::int32_t
             b4_t;    //4バイト
-        typedef unsigned int
+        typedef std::uint32_t
             b4u_t;    //4バイト unsigned
 
-        typedef short
+        typedef std::int16_t
             b2_t;    //2バイト
-        typedef unsigned short
+        typedef std::uint16_t
             b2u_t;    //2バイト unsigned
 
-        typedef char
+        typedef std::int8_t
             b1_t;    //1バイト
-        typedef unsigned char
+        typedef std::uint8_t
             b1u_t;    //1バイト unsigned
 
         //1ドットの型
@@ -468,7 +532,7 @@ namespace tty{
                     case ColorNum::n2:
                     case ColorNum::n16:
                     case ColorNum::n256:
-                        f.write(reinterpret_cast<const T*>(ColorPalette_), sizeof(dot) * (1 << BitCount_));
+                        f.write(reinterpret_cast<const T*>(ColorPalette_), sizeof(dot) * static_cast<std::size_t>(1 << BitCount_));
                         break;
                     }
 
@@ -1363,19 +1427,19 @@ namespace tty{
             //カラーパレットと画像を生成する
             switch(BitCount_){
             case ColorNum::b1:
-                    ColorPalette_ = new dot[1 << BitCount_]();
+                    ColorPalette_ = new dot[static_cast<std::size_t>(1 << BitCount_)]();
                     width_byte = width_byte_b1(Width_);
                     ImgData_ = new char[width_byte * Height_];
                     break;
 
                 case ColorNum::b4:
-                    ColorPalette_ = new dot[1 << BitCount_]();
+                    ColorPalette_ = new dot[static_cast<std::size_t>(1 << BitCount_)]();
                     width_byte = width_byte_b4(Width_);
                     ImgData_ = new char[width_byte * Height_];
                     break;
 
                 case ColorNum::b8:
-                    ColorPalette_ = new dot[1 << BitCount_]();
+                    ColorPalette_ = new dot[static_cast<std::size_t>(1 << BitCount_)]();
                     width_byte = width_byte_b8(Width_);
                     ImgData_ = new char[width_byte * Height_];
                     break;
@@ -1401,6 +1465,9 @@ namespace tty{
 
         xbmp(const char *const path) : CommonMemberInit{
             std::ifstream f(path, std::ios::binary);
+            if(f.fail()){
+                throw(bmp_ReadError());
+            }
             ctor_read(*this, f);
         }
 
@@ -1428,5 +1495,5 @@ namespace tty{
 
     typedef xbmp<void> bmp;
 
-} //namespace tty
-#endif // __TTY_BMP__
+} //namespace tt_legacy
+#endif // __TTXY_LEGACY_BMP__

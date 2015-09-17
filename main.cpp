@@ -166,10 +166,11 @@ namespace pattern{
             DrawRectGraph(dest_x, dest_y, x, y, w, h, pattern_surface->get(), FALSE, FALSE);
         }
 
+        int x, y, w, h;
+
     private:
         pattern(){}
         const patter_surface_type *pattern_surface;
-        int x, y, w, h;
     };
 
     pattern
@@ -184,6 +185,8 @@ namespace pattern{
         char_n(pattern_surface, 16, 56, 4, 6),
         char_z(pattern_surface, 20, 56, 4, 6),
         char_s(pattern_surface, 24, 56, 4, 6),
+        button_plus(pattern_surface, 28, 56, 9, 6),
+        button_minus(pattern_surface, 36, 56, 9, 6),
         str_valueislimit(pattern_surface, 0, 62, 129, 7),
         str_failed(pattern_surface, 0, 69, 18, 7),
         str_sin(pattern_surface, 0, 76, 20, 7),
@@ -537,7 +540,7 @@ public:
                 str.insert(0, "+");
                 ++i;
             }
-            to_symbol(str, vec, i);
+            to_symbol(str, vec, static_cast<int>(i));
         };
         auto proc_z = [&](const mpf_class &value, char_array_type &vec, int radix){
             vec.clear();
@@ -547,7 +550,7 @@ public:
                 str.insert(0, "+");
                 ++i;
             }
-            to_symbol(str, vec, i);
+            to_symbol(str, vec, static_cast<int>(i));
         };
         proc(value_xmin, xmin[0], 10);
         proc(value_xmin, xmin[1], 16);
@@ -641,7 +644,14 @@ private:
             common_data_array[i].size.second = height;
             common_data_array[i].height_begin_end.first = i * height / thread_num;
             common_data_array[i].height_begin_end.second = (i + 1) * height / thread_num;
-            thread_array[i] = std::thread(&mandelbrot_type::make, std::ref(*this), i, std::ref(common_data_array[i]));
+            auto lambda = [this](int i, const common_data &common){
+                this->make(i, common);
+            };
+            thread_array[i] = std::thread(
+                lambda,
+                i,
+                std::ref(common_data_array[i])
+            );
         }
         mutex_make_rec_thread.unlock();
     }
@@ -703,7 +713,7 @@ public:
 
     bool remake(std::function<void(int, int, rgb_type)> f){
         if(!make_color_plt(false)){ return false; }
-        for(int i = 0; i < thread_num; ++i){
+        for(unsigned int i = 0; i < thread_num; ++i){
             thread_array[i] = std::thread(
                 [&](int y_begin, int y_end){
                     for(int y = y_begin; y < y_end; ++y){
@@ -756,7 +766,7 @@ public:
             if(bmp_thread.joinable()){
                 bmp_thread.join();
             }
-            bmp = new tty::bmp(data.maxiter == 256 ? tty::bmp::ColorNum::n256 : tty::bmp::ColorNum::b24, width, height);
+            bmp = new tt_legacy::bmp(data.maxiter == 256 ? tt_legacy::bmp::ColorNum::n256 : tt_legacy::bmp::ColorNum::b24, width, height);
             bmp_thread = std::thread(
                 [&](int w, int h){
                     join_all_thread();
@@ -764,7 +774,7 @@ public:
                     if(data.maxiter == 256){
                         for(int i = 0; i < 0x100; ++i){
                             rgb_type a = color_plt[i];
-                            bmp->setplt(i, tty::bmp::rgb(a[0], a[1], a[2]));
+                            bmp->setplt(i, tt_legacy::bmp::rgb(a[0], a[1], a[2]));
                         }
                     }
                     set_pixel_fn_type
@@ -772,7 +782,7 @@ public:
                             bmp->pltidx(x, y, idx);
                         },
                         f24 = [&](tmp_complex, int x, int y, int idx, const rgb_type *c){
-                            bmp->clr(x, y, tty::bmp::rgb(c[idx][0], c[idx][1], c[idx][2]));
+                            bmp->clr(x, y, tt_legacy::bmp::rgb(c[idx][0], c[idx][1], c[idx][2]));
                         };
                     launch_draw_thread(data.maxiter == 256 ? f8 : f24, w, h);
                     for(; ; ){
@@ -855,9 +865,11 @@ public:
                 common_data_array[idx].height_begin_end.first = y + p;
                 common_data_array[idx].height_begin_end.second = y + q;
                 generate_flags[idx] = true;
+                auto lambda = [this](int i, const common_data &common){
+                    this->make(i, common);
+                };
                 thread_array[idx] = std::thread(
-                    &mandelbrot_type::make,
-                    std::ref(*this),
+                    lambda,
                     idx,
                     std::ref(common_data_array[idx])
                 );
@@ -993,7 +1005,7 @@ public:
 private:
     thread_draw_data data;
     plain_thread_draw_data data_cache;
-    tty::bmp *bmp;
+    tt_legacy::bmp *bmp;
     std::unique_ptr<std::thread[]> thread_array;
     std::thread bmp_thread;
     std::unique_ptr<common_data[]> common_data_array;
@@ -1296,7 +1308,7 @@ public:
         draw_buffer_handle(CreateGraphFromSoftImage(buffer_handle)),
         disp_dec_hex_switch(0),
         create_draw_buffer_flag(false),
-        visualization_proc(false),
+        visualization_proc(true),
         mode(mode_title),
         message(message_n),
         dad(dad_off),
@@ -1341,6 +1353,14 @@ public:
             if(dad == dad_lock && input_manager.mouse_release(MOUSE_INPUT_LEFT)){
                 dad = dad_drop;
             }
+            auto sub_prec = [&](){
+                mpf_set_default_prec(mpf_get_default_prec() - GMP_LIMB_BITS);
+                mandelbrot.set_prec(mpf_get_default_prec());
+            };
+            auto add_prec = [&](){
+                mpf_set_default_prec(mpf_get_default_prec() + GMP_LIMB_BITS);
+                mandelbrot.set_prec(mpf_get_default_prec());
+            };
             if(input_manager.mouse_push(MOUSE_INPUT_LEFT)){
                 {
                     int fn_y_min = fn_name_offset_y, fn_y_max = fn_y_min + char_height;
@@ -1355,6 +1375,20 @@ public:
                     if(input_manager.cursor_coord_x() >= ui_margin + 20 * 2 && input_manager.cursor_coord_x() < ui_margin + 20 * 3 && input_manager.cursor_coord_y() >= fn_y_min && input_manager.cursor_coord_y() <= fn_y_max){
                         mandelbrot.next_blue_fn();
                         remake_draw();
+                    }
+                    
+                    if(input_manager.cursor_coord_x() >= ui_margin && input_manager.cursor_coord_x() < ui_margin + pattern::button_plus.w && input_manager.cursor_coord_y() >= prec_draw_offset_y + char_box_height && input_manager.cursor_coord_y() < prec_draw_offset_y + char_box_height + pattern::button_plus.h){
+                        add_prec();
+                    }
+                    if(input_manager.cursor_coord_x() >= ui_margin + pattern::button_plus.w && input_manager.cursor_coord_x() < ui_margin + pattern::button_minus.w + pattern::button_plus.w && input_manager.cursor_coord_y() >= prec_draw_offset_y + char_box_height && input_manager.cursor_coord_y() < prec_draw_offset_y + char_box_height + pattern::button_plus.h){
+                        sub_prec();
+                    }
+
+                    if(input_manager.cursor_coord_x() >= ui_margin * 2 + char_box_width * 2 + 4 * hyphen_num && input_manager.cursor_coord_x() < ui_margin * 2 + char_box_width * 2 + 4 * hyphen_num + pattern::button_plus.w && input_manager.cursor_coord_y() >= prec_draw_offset_y + char_box_height && input_manager.cursor_coord_y() < prec_draw_offset_y + char_box_height + pattern::button_plus.h){
+                        mandelbrot.add_maxiter(+maxiter_addnum);
+                    }
+                    if(input_manager.cursor_coord_x() >= ui_margin * 2 + char_box_width * 2 + 4 * hyphen_num + pattern::button_plus.w && input_manager.cursor_coord_x() < ui_margin * 2 + char_box_width * 2 + 4 * hyphen_num + pattern::button_plus.w + pattern::button_minus.w && input_manager.cursor_coord_y() >= prec_draw_offset_y + char_box_height && input_manager.cursor_coord_y() < prec_draw_offset_y + char_box_height + pattern::button_plus.h){
+                        mandelbrot.add_maxiter(-maxiter_addnum);
                     }
                 }
                 if(
@@ -1524,11 +1558,9 @@ public:
                         break;
                     }
                 }else if(input_manager.push(KEY_INPUT_E)){
-                    mpf_set_default_prec(mpf_get_default_prec() - GMP_LIMB_BITS);
-                    mandelbrot.set_prec(mpf_get_default_prec());
+                    sub_prec();
                 }else if(input_manager.push(KEY_INPUT_R)){
-                    mpf_set_default_prec(mpf_get_default_prec() + GMP_LIMB_BITS);
-                    mandelbrot.set_prec(mpf_get_default_prec());
+                    add_prec();
                 }else if(input_manager.push(KEY_INPUT_D)){
                     mandelbrot.add_maxiter(-maxiter_addnum);
                 }else if(input_manager.push(KEY_INPUT_F)){
@@ -1559,7 +1591,7 @@ public:
         auto draw_float = [&](int x, int y, const disp_data_type::char_array_type &char_array){
             int i = 0;
             for(disp_data_type::char_array_type::const_iterator iter = char_array.cbegin(), end = char_array.cend(); iter != end; ++iter, ++i){
-                std::size_t n = x + i * char_width;
+                int n = x + i * char_width;
                 pattern::num[*iter]->draw(n, y);
             }
         };
@@ -1588,14 +1620,18 @@ public:
         draw_float(ui_margin, zoom_ratio_draw_offset_y + char_box_height, *disp_data.ptr_zoom_ratio[disp_dec_hex_switch]);
         draw_hyphen(ui_margin + char_box_width, prec_draw_offset_y, hyphen_num);
         pattern::char_p.draw(ui_margin, prec_draw_offset_y);
-        draw_value(ui_margin, prec_draw_offset_y + char_box_height, mpf_get_default_prec());
+        pattern::button_plus.draw(ui_margin, prec_draw_offset_y + char_box_height);
+        pattern::button_minus.draw(ui_margin + pattern::button_plus.w, prec_draw_offset_y + char_box_height);
+        draw_value(ui_margin * 2 + pattern::button_plus.w + pattern::button_minus.w, prec_draw_offset_y + char_box_height, mpf_get_default_prec());
         draw_hyphen(ui_margin * 2 + char_box_width * 3 + 4 * hyphen_num, prec_draw_offset_y, hyphen_num);
         if(mandelbrot.get_smooth_draw_flag()){
             pattern::char_s.draw(ui_margin * 2 + char_box_width * 2 + 4 * hyphen_num, prec_draw_offset_y);
         }else{
             pattern::char_n.draw(ui_margin * 2 + char_box_width * 2 + 4 * hyphen_num, prec_draw_offset_y);
         }
-        draw_value(ui_margin * 2 + char_box_width * 2 + 4 * hyphen_num, prec_draw_offset_y + char_box_height, mandelbrot.ref_data.maxiter);
+        pattern::button_plus.draw(ui_margin * 2 + char_box_width * 2 + 4 * hyphen_num, prec_draw_offset_y + char_box_height);
+        pattern::button_minus.draw(ui_margin * 2 + char_box_width * 2 + 4 * hyphen_num + pattern::button_plus.w, prec_draw_offset_y + char_box_height);
+        draw_value(ui_margin * 3 + char_box_width * 2 + 4 * hyphen_num + pattern::button_plus.w + pattern::button_minus.w, prec_draw_offset_y + char_box_height, mandelbrot.ref_data.maxiter);
         draw_fn(
             ui_margin,
             fn_name_offset_y,
@@ -1663,10 +1699,10 @@ private:
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
     if(
+        SetOutApplicationLogValidFlag(FALSE) != 0 ||
         ChangeWindowMode(TRUE) != DX_CHANGESCREEN_OK ||
         SetGraphMode(const_value::window_width, const_value::window_height, 32) != DX_CHANGESCREEN_OK ||
-        SetMainWindowText("mandelbrot island ver 0.2.0") != 0 ||
-        SetOutApplicationLogValidFlag(FALSE) != 0 ||
+        SetMainWindowText("mandelbrot island ver 0.3.0") != 0 ||
         DxLib_Init() != 0
     ){ return -1; }
     {

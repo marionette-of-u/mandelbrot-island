@@ -48,19 +48,16 @@ public:
 
 private:
 	typedef trigonometric_function<N> this_t;
-	typedef typename allocator_type::template rebind<char>::other char_allocator_type;
-	char_allocator_type cal;
-	char *mem;
+    arithmetic_type *sin_tan_;
 	arithmetic_type *sin_, *tan_;
 	angle_t *atan_;
 
 public:
 	trigonometric_function() :
-		cal(),
-		mem(cal.allocate((sizeof(arithmetic_type) * pi2 * 2) + (sizeof(angle_t) * (pi / 4)))),
-		sin_	(reinterpret_cast<arithmetic_type*>(mem)),
-		tan_	(reinterpret_cast<arithmetic_type*>(mem + sizeof(arithmetic_type) * pi2)),
-		atan_	(reinterpret_cast<angle_t*>(mem + sizeof(arithmetic_type) * pi2 * 2))
+        sin_tan_(new arithmetic_type[pi2 * 2 + pi / 4]),
+		sin_	(sin_tan_),
+		tan_	(sin_tan_ + pi2),
+		atan_	(new angle_t[pi2 * 2])
 	{
 		//ÉeÅ[ÉuÉãÇçÏê¨
 		const arithmetic_type
@@ -80,8 +77,9 @@ public:
 		}
 	}
 
-	virtual ~trigonometric_function(){
-		cal.deallocate(mem, (sizeof(arithmetic_type) * pi2 * 2) + (sizeof(angle_t) * (pi / 4)));
+	~trigonometric_function(){
+		delete[] sin_tan_;
+        delete[] atan_;
 	}
 
 	const arithmetic_type &sin(const angle_t &a)const{ return sin_[a & mask]; }
